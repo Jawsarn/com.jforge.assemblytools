@@ -1,0 +1,21 @@
+{
+  "name": "com.jforge.assemblytools",
+  "displayName": "JForge Assembly Tools",
+  "version": "1.0.0",
+  "description": "A collection of tools for working with assemblies in Unity",
+  "unity": "2022.3",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  },
+  "keywords": [
+    "assembly"
+  ],
+  "author": "Jawsarn",
+  "samples": [
+    {
+      "displayName": "Samples",
+      "description": "Some examples of areas of use for the assembly tools.",
+      "path": "Samples~"
+    }
+  ]
+}

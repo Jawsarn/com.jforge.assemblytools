@@ -1,0 +1,17 @@
+{
+  "name": "Gen3",
+  "rootNamespace": "",
+  "references": [
+    "UnityEditor.UI",
+    "Unity.VisualScripting.Core"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

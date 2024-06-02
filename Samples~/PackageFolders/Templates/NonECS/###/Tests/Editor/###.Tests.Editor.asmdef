@@ -1,0 +1,6 @@
+{
+  "name": "###.Tests.Editor",
+  "references": [
+    "###.Editor"
+  ]
+}
