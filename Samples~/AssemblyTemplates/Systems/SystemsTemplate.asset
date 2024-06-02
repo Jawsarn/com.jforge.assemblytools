@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ddbe9bdf9e31c164bb702e7a7b8463b3, type: 3}
+  m_Name: SystemsTemplate
+  m_EditorClassIdentifier: 
+  assemblyDefinitionBase: {fileID: 5897886265953266890, guid: be21218a095de734b88431d41f78caea, type: 3}
+  assemblyName: 
+  assemblyFileName: 
+  rootNamespace: 
+  existingReferences: []
+  additionalReferences: []
+  generatedDefinition: {fileID: 5897886265953266890, guid: 3bba88d2dc347e04cba461f8e7e993e5, type: 3}

@@ -1,0 +1,9 @@
+{
+  "name": "#.Tests.Editor",
+  "references": [
+    "#.Components",
+    "#.Mixed",
+    "#.Client",
+    "#.Server"
+  ]
+}

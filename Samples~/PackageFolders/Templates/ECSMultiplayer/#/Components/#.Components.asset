@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ddbe9bdf9e31c164bb702e7a7b8463b3, type: 3}
+  m_Name: '#.Components'
+  m_EditorClassIdentifier: 
+  assemblyDefinitionBase: {fileID: 5897886265953266890, guid: 6c06dd68af2fcb44c95e0f779232b120, type: 3}
+  assemblyName: 
+  assemblyFileName: 
+  rootNamespace: 
+  existingReferences: []
+  additionalReferences: []
+  generatedDefinition: {fileID: 5897886265953266890, guid: 46897df2279abef41ac0826bde06a8ae, type: 3}
