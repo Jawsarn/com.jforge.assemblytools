@@ -1,3 +1,9 @@
+# Changelog
+
+## [1.0.1] - 2026-03-07
+### Fixed
+* Fixed incorrect reference copying when multiple assemblies shared part of a name; inherited assemblies now reference the correct base assembly.
+
 ## [1.0.0] - 2024-06-02
 
 ### Added

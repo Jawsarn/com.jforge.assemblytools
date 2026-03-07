@@ -3,7 +3,6 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEditorInternal;
-using UnityEngine;
 
 namespace JForge.AssemblyTools.Utility
 {
@@ -118,16 +117,26 @@ namespace JForge.AssemblyTools.Utility
                 else
                 {
                     var guids = AssetDatabase.FindAssets(referenceString + " t:asmdef");
-                    if (guid.Length > 1)
+
+                    // AssetDatabase search can find files that starts with the reference string, so we need to check if any of the results is an exact match
+                    foreach (var checkGuid in guids)
                     {
-                        Debug.LogError($"Multiple assembly definitions with the same name found of name: {referenceString}. Using the first one.");
-                    }
-                    
-                    if (guids.Length > 0)
-                    {
-                        guid = guids[0];
+                        var checkPath = AssetDatabase.GUIDToAssetPath(checkGuid);
+                        if (referenceString != System.IO.Path.GetFileNameWithoutExtension(checkPath))
+                        {
+                            continue;
+                        }
+
+                        guid = checkGuid;
+                        break;
                     }
                 }
+
+                if (string.IsNullOrEmpty(guid))
+                {
+                    continue;
+                }
+                
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 var asset = AssetDatabase.LoadAssetAtPath<AssemblyDefinitionAsset>(path);
 
