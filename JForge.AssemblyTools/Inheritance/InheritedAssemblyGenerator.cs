@@ -21,6 +21,11 @@ namespace JForge.AssemblyTools.Inheritance
         
         private void OnValidate()
         {
+            // Doesn't touch the AssetDatabase and doesn't depend on assemblyDefinitionBase being set, so it's
+            // safe (and necessary) to run this immediately - Generate() below bails out before ever checking
+            // for duplicates if the base assembly isn't assigned yet or fails to deserialize.
+            WarnAboutDuplicateAdditionalReferences();
+
             // We delay the generation to avoid issues with the asset database
             EditorApplication.delayCall += GenerateDelayed;
         }
@@ -72,6 +77,12 @@ namespace JForge.AssemblyTools.Inheritance
                 assemblySerializer.SetRootNamespace(rootNamespace);
             }
             CacheExistingReferences(assemblySerializer.GetReferencesList());
+            if (forced)
+            {
+                // Non-forced calls come from OnValidate, which already warns directly and immediately;
+                // avoid logging the same warning twice for every interactive edit.
+                WarnAboutDuplicateAdditionalReferences();
+            }
             assemblySerializer.AddReferences(additionalReferences);
             
             var assemblyContent = assemblySerializer.SerializeToString();
@@ -104,8 +115,40 @@ namespace JForge.AssemblyTools.Inheritance
                 existingReferences.Add(asset);
                 additionalReferences.Remove(asset);
             }
+
+            // Mutating these directly (not via SerializedProperty) doesn't tell Unity this object changed -
+            // without this, the change can be silently lost on the next domain reload.
+            EditorUtility.SetDirty(this);
         }
         
+        public HashSet<AssemblyDefinitionAsset> GetDuplicateAdditionalReferences()
+        {
+            var seen = new HashSet<AssemblyDefinitionAsset>();
+            var duplicates = new HashSet<AssemblyDefinitionAsset>();
+            foreach (var reference in additionalReferences)
+            {
+                if (reference == null)
+                {
+                    continue;
+                }
+
+                if (!seen.Add(reference))
+                {
+                    duplicates.Add(reference);
+                }
+            }
+
+            return duplicates;
+        }
+
+        private void WarnAboutDuplicateAdditionalReferences()
+        {
+            foreach (var duplicate in GetDuplicateAdditionalReferences())
+            {
+                Debug.LogWarning($"{nameof(InheritedAssemblyGenerator)} '{name}' has a duplicate entry for '{duplicate.name}' in {nameof(additionalReferences)} - the extra entry is ignored when generating. Remove it to clear this warning.", this);
+            }
+        }
+
         private bool ShouldGenerate(string content, string assemblyDefinitionPath)
         {
             if (generatedDefinition == null || !content.Equals(generatedDefinition.text)) 
@@ -123,6 +166,7 @@ namespace JForge.AssemblyTools.Inheritance
             File.WriteAllText(assemblyDefinitionPath, content);
             AssetDatabase.ImportAsset(assemblyDefinitionPath, ImportAssetOptions.ForceUpdate);
             generatedDefinition = AssetDatabase.LoadAssetAtPath<AssemblyDefinitionAsset>(assemblyDefinitionPath);
+            EditorUtility.SetDirty(this);
             Debug.Log($"Generated assembly definition: {assemblyDefinitionPath}", generatedDefinition);
         }
         
@@ -132,12 +176,18 @@ namespace JForge.AssemblyTools.Inheritance
             {
                 return;
             }
-            
+
             var existingGeneratedDefinitionPath = AssetDatabase.GetAssetPath(generatedDefinition);
+            if (ArePathsEqual(existingGeneratedDefinitionPath, assemblyDefinitionPath))
+            {
+                // Regenerating in place: leave the existing file (and its .meta/GUID) alone.
+                // It will be overwritten with the new content, so the GUID stays stable for anything referencing it.
+                return;
+            }
+
             if (ArePathsInSameFolder(assemblyDefinitionPath, existingGeneratedDefinitionPath))
             {
-                File.Delete(existingGeneratedDefinitionPath);
-                AssetDatabase.Refresh();
+                AssetDatabase.DeleteAsset(existingGeneratedDefinitionPath);
             }
             else
             {
@@ -145,7 +195,12 @@ namespace JForge.AssemblyTools.Inheritance
             }
             generatedDefinition = null;
         }
-        
+
+        private static bool ArePathsEqual(string pathA, string pathB)
+        {
+            return string.Equals(Path.GetFullPath(pathA), Path.GetFullPath(pathB), StringComparison.OrdinalIgnoreCase); // This might be issue for linux
+        }
+
         private static bool ArePathsInSameFolder(string pathA, string pathB)
         {
             return Path.GetDirectoryName(pathA) == Path.GetDirectoryName(pathB);

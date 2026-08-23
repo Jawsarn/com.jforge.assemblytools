@@ -2,7 +2,7 @@
   "name": "##.Authoring",
   "rootNamespace": "",
   "references": [
-    "##.Components"
+    "GUID:e6e382e7c3828bb439eeafa91088bebc"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

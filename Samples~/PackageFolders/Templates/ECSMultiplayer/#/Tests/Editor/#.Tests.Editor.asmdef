@@ -1,9 +1,9 @@
 {
   "name": "#.Tests.Editor",
   "references": [
-    "#.Components",
-    "#.Mixed",
-    "#.Client",
-    "#.Server"
+    "GUID:46897df2279abef41ac0826bde06a8ae",
+    "GUID:16d163c298cc4cd4995386ed43f5acb6",
+    "GUID:fe683ee90febc704cbbf0db36af3572c",
+    "GUID:5d26a59cc4a3cad45ad98420837ad37f"
   ]
 }

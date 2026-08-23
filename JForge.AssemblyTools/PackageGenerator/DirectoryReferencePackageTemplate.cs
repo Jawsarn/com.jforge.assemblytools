@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using JForge.AssemblyTools.PackageGenerator.PostProcessors;
 using JForge.AssemblyTools.Inheritance;
 using JForge.AssemblyTools.Utility;
@@ -126,8 +125,7 @@ namespace JForge.AssemblyTools.PackageGenerator
 
         private void PostProcessAssets(string packageNameReplaceString, string packageName, Dictionary<Object, Object> oldNewAssetsMap)
         {
-            var postProcessorTypes = Assembly.GetExecutingAssembly().GetTypes()
-                .Where(t => t.GetInterfaces().Contains(typeof(IAssetPackageGeneratorAssetPostProcessor)))
+            var postProcessorTypes = TypeCache.GetTypesDerivedFrom<IAssetPackageGeneratorAssetPostProcessor>()
                 .Where(t => !t.IsAbstract);
             
             var postProcessors = postProcessorTypes

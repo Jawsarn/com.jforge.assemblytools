@@ -2,7 +2,7 @@
   "name": "#.Mixed",
   "rootNamespace": "",
   "references": [
-    "#.Components"
+    "GUID:46897df2279abef41ac0826bde06a8ae"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

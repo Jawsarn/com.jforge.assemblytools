@@ -1,7 +1,8 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
+using UnityEditor.Compilation;
 using UnityEditorInternal;
 
 namespace JForge.AssemblyTools.Utility
@@ -10,11 +11,11 @@ namespace JForge.AssemblyTools.Utility
     {
         private const string GuidPrefix = "GUID:";
         private bool _useGUID;
-        private dynamic _assemblyObject;
+        private JObject _assemblyObject;
 
-        public bool TryDeserialize(string assemblyContent, bool defaultUseGUID = false)
+        public bool TryDeserialize(string assemblyContent, bool defaultUseGUID = true)
         {
-            _assemblyObject = JsonConvert.DeserializeObject(assemblyContent);
+            _assemblyObject = JsonConvert.DeserializeObject<JObject>(assemblyContent);
             if (_assemblyObject != null)
             {
                 EvaluateUseGUIDReferences(defaultUseGUID);
@@ -24,19 +25,34 @@ namespace JForge.AssemblyTools.Utility
 
         private void EvaluateUseGUIDReferences(bool defaultUseGuid)
         {
-            _useGUID = HasReferences() ? AnyExistingReferencesUseGUID() : defaultUseGuid;
+            _useGUID = TryGetReferences(out var references) ? AnyExistingReferencesUseGUID(references) : defaultUseGuid;
         }
 
-        private bool HasReferences()
+        // False for both a missing array and an empty one - callers treat "no references" and
+        // "zero references" the same way, so there's no reason to distinguish them.
+        private bool TryGetReferences(out JArray references)
         {
-            return _assemblyObject.references != null && _assemblyObject.references.Count > 0;
+            references = _assemblyObject["references"] as JArray;
+            return references != null && references.Count > 0;
         }
 
-        private bool AnyExistingReferencesUseGUID()
+        private JArray GetOrCreateReferencesArray()
         {
-            foreach (string referenceString in _assemblyObject.references)
+            var references = _assemblyObject["references"] as JArray;
+            if (references == null)
             {
-                if (referenceString.StartsWith(GuidPrefix))
+                references = new JArray();
+                _assemblyObject["references"] = references;
+            }
+
+            return references;
+        }
+
+        private static bool AnyExistingReferencesUseGUID(JArray references)
+        {
+            foreach (var referenceToken in references)
+            {
+                if (((string)referenceToken).StartsWith(GuidPrefix))
                 {
                     return true;
                 }
@@ -47,97 +63,97 @@ namespace JForge.AssemblyTools.Utility
 
         public string GetAssemblyName()
         {
-            return _assemblyObject["name"];
+            return (string)_assemblyObject["name"];
         }
-        
+
         public void SetAssemblyName(string assemblyName)
         {
             _assemblyObject["name"] = assemblyName;
         }
-        
+
         public string GetRootNamespace()
         {
-            return _assemblyObject["rootNamespace"];
+            return (string)_assemblyObject["rootNamespace"];
         }
-        
+
         public void SetRootNamespace(string rootNamespace)
         {
             _assemblyObject["rootNamespace"] = rootNamespace;
         }
 
         public void AddReferences(IEnumerable<AssemblyDefinitionAsset> additionalReferences)
-        {            
-            if (_assemblyObject.references == null)
-            {
-                _assemblyObject.references = new JArray();
-            }
-            
+        {
+            var references = GetOrCreateReferencesArray();
+
             foreach (var additionalReference in additionalReferences)
             {
                 if (additionalReference == null)
                 {
                     continue;
                 }
-            
+
                 var guid = AssetDatabase.GUIDFromAssetPath(AssetDatabase.GetAssetPath(additionalReference));
-                _assemblyObject.references.Add(_useGUID ? $"{GuidPrefix}{guid}" : additionalReference.name);
+                var referenceValue = _useGUID ? $"{GuidPrefix}{guid}" : additionalReference.name;
+
+                // Guards against duplicate entries, e.g. when the inspector's list "+" button duplicates the
+                // previous entry, or the same reference already came from the base assembly.
+                if (ContainsReference(references, referenceValue))
+                {
+                    continue;
+                }
+
+                references.Add(referenceValue);
             }
         }
-        
+
+        private static bool ContainsReference(JArray references, string referenceValue)
+        {
+            foreach (var existingReference in references)
+            {
+                if (string.Equals((string)existingReference, referenceValue, System.StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public void SetReferences(IEnumerable<AssemblyDefinitionAsset> references)
         {
-            if (_assemblyObject.references == null)
-            {
-                _assemblyObject.references = new JArray();
-            }
-            
-            _assemblyObject.references.Clear();
+            var referencesArray = GetOrCreateReferencesArray();
+            referencesArray.Clear();
             foreach (var reference in references)
             {
                 var guid = AssetDatabase.GUIDFromAssetPath(AssetDatabase.GetAssetPath(reference));
-                _assemblyObject.references.Add(_useGUID ? $"{GuidPrefix}{guid}" : reference.name);
+                referencesArray.Add(_useGUID ? $"{GuidPrefix}{guid}" : reference.name);
             }
         }
 
         public List<AssemblyDefinitionAsset> GetReferencesList()
         {
-            if (!HasReferences())
+            if (!TryGetReferences(out var referencesArray))
             {
                 return new List<AssemblyDefinitionAsset>();
             }
-        
-            var references = new List<AssemblyDefinitionAsset>(_assemblyObject.references.Count);
-            foreach (string referenceString in _assemblyObject.references)
+
+            var references = new List<AssemblyDefinitionAsset>(referencesArray.Count);
+            foreach (var referenceToken in referencesArray)
             {
-                var guid = "";
-                if (referenceString.StartsWith(GuidPrefix))
-                {
-                    guid = referenceString.Replace(GuidPrefix, "");
-                }
-                else
-                {
-                    var guids = AssetDatabase.FindAssets(referenceString + " t:asmdef");
+                var referenceString = (string)referenceToken;
 
-                    // AssetDatabase search can find files that starts with the reference string, so we need to check if any of the results is an exact match
-                    foreach (var checkGuid in guids)
-                    {
-                        var checkPath = AssetDatabase.GUIDToAssetPath(checkGuid);
-                        if (referenceString != System.IO.Path.GetFileNameWithoutExtension(checkPath))
-                        {
-                            continue;
-                        }
+                // GUID references resolve directly; name references go through Unity's own assembly-name
+                // index instead of a linear AssetDatabase.FindAssets search - faster, and always current
+                // since Unity maintains that index itself rather than us caching it.
+                var path = referenceString.StartsWith(GuidPrefix)
+                    ? AssetDatabase.GUIDToAssetPath(referenceString.Substring(GuidPrefix.Length))
+                    : CompilationPipeline.GetAssemblyDefinitionFilePathFromAssemblyName(referenceString);
 
-                        guid = checkGuid;
-                        break;
-                    }
-                }
-
-                if (string.IsNullOrEmpty(guid))
+                if (string.IsNullOrEmpty(path))
                 {
                     continue;
                 }
-                
-                var path = AssetDatabase.GUIDToAssetPath(guid);
+
                 var asset = AssetDatabase.LoadAssetAtPath<AssemblyDefinitionAsset>(path);
 
                 // If it's null, it may mean that we just haven't included some packages in our project which should be fine
@@ -146,7 +162,7 @@ namespace JForge.AssemblyTools.Utility
                     references.Add(asset);
                 }
             }
-            
+
             return references;
         }
 

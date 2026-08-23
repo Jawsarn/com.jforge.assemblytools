@@ -2,8 +2,8 @@
   "name": "#.Client",
   "rootNamespace": "",
   "references": [
-    "#.Components",
-    "#.Mixed"
+    "GUID:46897df2279abef41ac0826bde06a8ae",
+    "GUID:16d163c298cc4cd4995386ed43f5acb6"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
