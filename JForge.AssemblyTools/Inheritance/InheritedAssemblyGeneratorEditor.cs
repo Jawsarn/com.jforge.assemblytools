@@ -58,7 +58,7 @@ namespace JForge.AssemblyTools.Inheritance
             
             var generateButton = new Button(() => {
                 var inheritedAssemblyGenerator = (InheritedAssemblyGenerator)target;
-                inheritedAssemblyGenerator.Generate(true);
+                inheritedAssemblyGenerator.TryGenerate(true);
             }) {
                 text = "Force Regenerate Assembly",
             };

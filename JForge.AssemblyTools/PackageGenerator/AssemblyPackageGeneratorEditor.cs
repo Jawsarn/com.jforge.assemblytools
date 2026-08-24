@@ -1,5 +1,4 @@
-﻿using System.IO;
-using UnityEditor;
+﻿using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine.UIElements;
 
@@ -23,12 +22,7 @@ namespace JForge.AssemblyTools.PackageGenerator
             script.SetEnabled(false);
             
             var generateButton = new Button(() => {
-                var assemblyPackageGenerator = (AssemblyPackageGenerator)target;
-                if (assemblyPackageGenerator.packageTemplate != null)
-                {
-                    var destinationPath = $"{Path.GetDirectoryName(AssetDatabase.GetAssetPath(assemblyPackageGenerator))}\\";
-                    assemblyPackageGenerator.packageTemplate.GeneratePackage(assemblyPackageGenerator.generatedPackageName, destinationPath);
-                }
+                AssemblyPackageGeneratorUtility.GeneratePackage((AssemblyPackageGenerator)target);
             }) {
                 text = "Generate Package",
             };

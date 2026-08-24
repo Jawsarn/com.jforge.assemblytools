@@ -22,7 +22,7 @@ namespace JForge.AssemblyTools.Inheritance
         private void OnValidate()
         {
             // Doesn't touch the AssetDatabase and doesn't depend on assemblyDefinitionBase being set, so it's
-            // safe (and necessary) to run this immediately - Generate() below bails out before ever checking
+            // safe (and necessary) to run this immediately - TryGenerate() below bails out before ever checking
             // for duplicates if the base assembly isn't assigned yet or fails to deserialize.
             WarnAboutDuplicateAdditionalReferences();
 
@@ -37,7 +37,7 @@ namespace JForge.AssemblyTools.Inheritance
                 return;
             }
             
-            Generate(false);
+            TryGenerate(false);
         }
 
         public virtual string GetAssemblyName()
@@ -50,7 +50,22 @@ namespace JForge.AssemblyTools.Inheritance
             return string.IsNullOrEmpty(assemblyFileName) ? name : assemblyFileName;
         }
         
-        public virtual void Generate(bool forced = false)
+        /// <summary>
+        /// Regenerates the derived assembly definition from <see cref="assemblyDefinitionBase"/> if its
+        /// content has changed since the last generation.
+        /// </summary>
+        /// <param name="forced">
+        /// If true, logs errors/warnings for problems that would otherwise fail silently (missing base
+        /// assembly, deserialization failure, duplicate references) - used for explicit user- or
+        /// agent-triggered regeneration. Non-forced calls come from <c>OnValidate</c>, which already reports
+        /// duplicate references itself; see <see cref="WarnAboutDuplicateAdditionalReferences"/>.
+        /// </param>
+        /// <returns>
+        /// Whether a new/changed assembly definition was actually written, so callers (see
+        /// <see cref="InheritedAssemblyGeneratorUtility"/>) can tell whether anything changed without
+        /// inspecting file state themselves.
+        /// </returns>
+        public virtual bool TryGenerate(bool forced = false)
         {
             if (assemblyDefinitionBase == null)
             {
@@ -58,9 +73,9 @@ namespace JForge.AssemblyTools.Inheritance
                 {
                     Debug.LogError($"Missing {nameof(assemblyDefinitionBase)}", this);
                 }
-                return;
+                return false;
             }
-            
+
             var assemblySerializer = new AssemblySerializer();
             if (!assemblySerializer.TryDeserialize(assemblyDefinitionBase.text))
             {
@@ -68,9 +83,9 @@ namespace JForge.AssemblyTools.Inheritance
                 {
                     Debug.LogError($"Could not deserialize {nameof(assemblyDefinitionBase)}", this);
                 }
-                return;
+                return false;
             }
-            
+
             assemblySerializer.SetAssemblyName(GetAssemblyName());
             if(!string.IsNullOrEmpty(rootNamespace))
             {
@@ -84,27 +99,28 @@ namespace JForge.AssemblyTools.Inheritance
                 WarnAboutDuplicateAdditionalReferences();
             }
             assemblySerializer.AddReferences(additionalReferences);
-            
+
             var assemblyContent = assemblySerializer.SerializeToString();
             var generatorPath = AssetDatabase.GetAssetPath(this);
             var generatorDirectory = Path.GetDirectoryName(generatorPath);
             if (generatorDirectory == null)
             {
-                return;
+                return false;
             }
-            
+
             var assemblyDefinitionPath = Path.Combine(generatorDirectory, GetAssemblyFileName());
             if (!assemblyDefinitionPath.EndsWith(UnityFileExtensions.AssemblyDefinition))
             {
                 assemblyDefinitionPath += UnityFileExtensions.AssemblyDefinition;
             }
-            
+
             if (!ShouldGenerate(assemblyContent, assemblyDefinitionPath))
             {
-                return;
+                return false;
             }
 
             GenerateAssemblyDefinition(assemblyDefinitionPath, assemblyContent);
+            return true;
         }
 
         private void CacheExistingReferences(IEnumerable<AssemblyDefinitionAsset> referenceAssets)

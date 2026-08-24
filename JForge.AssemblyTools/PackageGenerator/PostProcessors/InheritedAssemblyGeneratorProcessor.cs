@@ -30,7 +30,7 @@ namespace JForge.AssemblyTools.PackageGenerator.PostProcessors
             assemblyPackageGenerator.assemblyFileName = assemblyPackageGenerator.assemblyFileName?.Replace(context.featureNameReplaceString, context.featureName);
             assemblyPackageGenerator.rootNamespace = assemblyPackageGenerator.rootNamespace?.Replace(context.featureNameReplaceString, context.featureName);
             EditorUtility.SetDirty(assemblyPackageGenerator);
-            assemblyPackageGenerator.Generate(true);
+            assemblyPackageGenerator.TryGenerate(true);
         }
     }
 }
