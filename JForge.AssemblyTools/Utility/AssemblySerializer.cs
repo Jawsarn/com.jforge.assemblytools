@@ -13,19 +13,19 @@ namespace JForge.AssemblyTools.Utility
         private bool _useGUID;
         private JObject _assemblyObject;
 
-        public bool TryDeserialize(string assemblyContent, bool defaultUseGUID = true)
+        public bool TryDeserialize(string assemblyContent)
         {
             _assemblyObject = JsonConvert.DeserializeObject<JObject>(assemblyContent);
             if (_assemblyObject != null)
             {
-                EvaluateUseGUIDReferences(defaultUseGUID);
+                EvaluateUseGUIDReferences();
             }
             return _assemblyObject != null;
         }
 
-        private void EvaluateUseGUIDReferences(bool defaultUseGuid)
+        private void EvaluateUseGUIDReferences()
         {
-            _useGUID = TryGetReferences(out var references) ? AnyExistingReferencesUseGUID(references) : defaultUseGuid;
+            _useGUID = TryGetReferences(out var references) ? AnyExistingReferencesUseGUID(references) : AssemblyToolsSettings.DefaultUseGuidReferences;
         }
 
         // False for both a missing array and an empty one - callers treat "no references" and

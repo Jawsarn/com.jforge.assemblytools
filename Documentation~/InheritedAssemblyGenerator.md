@@ -12,6 +12,11 @@ The Inherited Assembly Generator is a tool to generate inherited assemblies from
 
 ![InheritedAssemblyGeneratorSO](Images/InheritedAssemblyGeneratorSO.png)
 
+## Settings
+**Edit > Project Settings > JForge Assembly Tools** has a **Default To GUID References** toggle (on by default). It controls how references get written when a generated assembly's reference style can't be inferred from an existing reference - e.g. the base assembly has none yet. GUID references survive the referenced assembly being renamed; name-based references are more readable in the generated `.asmdef` but break if the referenced assembly is renamed. Once an assembly has at least one reference, its existing style is always followed regardless of this setting.
+
+This is `AssemblyToolsSettings.DefaultUseGuidReferences` - also settable from code (`AssemblyToolsSettings.DefaultUseGuidReferences = false;`, persists immediately) or by hand-editing `ProjectSettings/JForgeAssemblyToolsSettings.asset` directly. Check that file into source control so the whole team shares the same default.
+
 ## Regenerating outside the Editor
 Editing a base assembly or an **InheritedAssemblyGenerator** asset directly - e.g. with a text editor, another tool, or an AI coding agent - does not trigger regeneration. Only edits made through the Unity Inspector do, since regeneration is driven by Unity's `OnValidate`, which only fires for Inspector-driven changes, not external file edits.
 

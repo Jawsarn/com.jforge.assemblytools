@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1] - 2026-08-25
+### Added
+* A project setting, **Edit > Project Settings > JForge Assembly Tools > Default To GUID References** (on by default), controlling whether generated assemblies default to GUID- or name-based references when their style can't be inferred from an existing reference. Previously this default (`AssemblySerializer.TryDeserialize`'s `defaultUseGUID` parameter, added in `[1.0.2]`) was hardcoded to `true` with no way to change it. Backed by `AssemblyToolsSettings.DefaultUseGuidReferences`, a `ScriptableSingleton<T>` persisted at `ProjectSettings/JForgeAssemblyToolsSettings.asset` (shared via source control, not per-user `EditorPrefs`) - not a regular `AssetDatabase`-tracked asset, since `ProjectSettings/` isn't part of the AssetDatabase. The Project Settings page is a plain `SettingsProvider` with a `Toggle` bound to the setting's own get/set property (`AssemblyToolsSettingsProvider`); also settable directly from code (`AssemblyToolsSettings.DefaultUseGuidReferences = false;`) or by hand-editing the file.
+
+### Changed
+* `AssemblySerializer.TryDeserialize` no longer takes a `defaultUseGUID` parameter - it now reads `AssemblyToolsSettings.DefaultUseGuidReferences` directly, so both callers (`InheritedAssemblyGenerator.TryGenerate`, `AssemblyDefinitionProcessor.Process`) no longer need to pass it through. Any external code calling `TryDeserialize` with the second argument will need updating to drop it.
+
 ## [1.1.0] - 2026-08-24
 ### Added
 * `InheritedAssemblyGeneratorUtility.RegenerateTarget(string)` - regenerates only the `InheritedAssemblyGenerator`(s) affected by a single changed file (itself, or a `.asmdef` used as some generator's base), without touching any other generator in the project. Callable directly (e.g. from a live-Editor MCP/tool bridge), from a Project-window context menu item on a selected generator or base assembly (`JForge > AssemblyTools > Regenerate Inherited Assembly`), or headless via `RegenerateTargetFromCommandLine` (reads a `-jforgeTarget <path>` argument) through Unity's `-executeMethod` batch-mode flag. This is the primary fix for regeneration not being triggered by direct file edits (e.g. from an AI coding agent) rather than Inspector edits, since it's scoped and fast enough to run after every such edit.
