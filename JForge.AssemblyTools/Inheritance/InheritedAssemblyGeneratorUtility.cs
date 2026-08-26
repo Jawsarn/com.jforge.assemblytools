@@ -67,7 +67,9 @@ namespace JForge.AssemblyTools.Inheritance
         /// Regenerates every <see cref="InheritedAssemblyGenerator"/> in the project. Materially more
         /// expensive than <see cref="RegenerateTarget"/> - every generator in the project actually runs
         /// <see cref="InheritedAssemblyGenerator.TryGenerate"/>, not just the ones affected by a specific change.
-        /// Prefer <see cref="RegenerateTarget"/> when the changed file is known.
+        /// Prefer <see cref="RegenerateTarget"/> when the changed file is known; if you're only unsure whether
+        /// anything needs regenerating at all, check <see cref="AnyRootAssemblyChanged"/> first instead of
+        /// calling this reflexively.
         /// </summary>
         [MenuItem(PackageUtilities.CreateAssetMenuPath + "Regenerate All Inherited Assemblies")]
         public static void RegenerateAll()
@@ -103,6 +105,61 @@ namespace JForge.AssemblyTools.Inheritance
             }
 
             Debug.Log($"[{nameof(InheritedAssemblyGeneratorUtility)}] Regenerated {generators.Count} inherited assembly generator(s), changes made: {anyChangedThisRun}.");
+        }
+
+        /// <summary>
+        /// Reports whether any "root" <see cref="InheritedAssemblyGenerator"/> - one whose
+        /// <c>assemblyDefinitionBase</c> is a hand-authored assembly, not itself the <c>generatedDefinition</c>
+        /// of some other generator in the project - would produce different output right now. Cheap: the same
+        /// read-only computation as <see cref="InheritedAssemblyGenerator.NeedsRegeneration"/>, no file I/O.
+        /// </summary>
+        /// <remarks>
+        /// Use this to decide whether <see cref="RegenerateAll"/> is actually worth running, instead of calling
+        /// it reflexively: if nothing at the root of any chain has changed, nothing further down the chain
+        /// should need re-deriving either - as long as the project was already fully regenerated as of the
+        /// last <see cref="RegenerateAll"/>/<see cref="RegenerateTarget"/> call (the same assumption
+        /// <see cref="RegenerateTarget"/>'s own base-&gt;dependents lookup already relies on). This does not
+        /// catch a middle-of-chain generator's own fields being edited directly without going through
+        /// <see cref="RegenerateTarget"/> - that specific case is what <see cref="RegenerateTarget"/> itself
+        /// exists to handle, and it's cheap enough to just always call after a known edit rather than checking
+        /// first.
+        /// </remarks>
+        public static bool AnyRootAssemblyChanged()
+        {
+            var generators = FindAllGenerators();
+            var generatedDefinitions = new HashSet<AssemblyDefinitionAsset>();
+            foreach (var generator in generators)
+            {
+                if (generator.generatedDefinition != null)
+                {
+                    generatedDefinitions.Add(generator.generatedDefinition);
+                }
+            }
+
+            foreach (var generator in generators)
+            {
+                var isRoot = generator.assemblyDefinitionBase != null && !generatedDefinitions.Contains(generator.assemblyDefinitionBase);
+                if (isRoot && generator.NeedsRegeneration())
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// <see cref="AnyRootAssemblyChanged"/>, callable via <c>-executeMethod</c> as a CI staleness gate:
+        /// exits the Editor process with code 1 if a root assembly has changed (regeneration is needed but
+        /// hasn't been run/committed), or 0 otherwise. <b>Only call this from a dedicated batch-mode
+        /// invocation</b> - <c>EditorApplication.Exit</c> forcibly quits the Editor, which would be destructive
+        /// in an interactive session.
+        /// </summary>
+        public static void CheckRootAssembliesFromCommandLine()
+        {
+            var changed = AnyRootAssemblyChanged();
+            Debug.Log($"[{nameof(InheritedAssemblyGeneratorUtility)}] Root assembly change detected: {changed}.");
+            EditorApplication.Exit(changed ? 1 : 0);
         }
 
         /// <summary>

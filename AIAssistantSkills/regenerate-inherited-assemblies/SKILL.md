@@ -1,11 +1,13 @@
 ---
 name: regenerate-inherited-assemblies
-description: Regenerate a JForge Assembly Tools InheritedAssemblyGenerator-derived .asmdef after editing a base .asmdef or an InheritedAssemblyGenerator asset directly by file (not through the Unity Editor Inspector), since Unity's OnValidate does not fire for external file edits and the derived assembly would otherwise silently go stale.
+description: Regenerate a JForge Assembly Tools InheritedAssemblyGenerator-derived .asmdef after editing a base .asmdef or an InheritedAssemblyGenerator asset directly by file (not through the Unity Editor Inspector), since Unity's OnValidate does not fire for external file edits and the derived assembly would otherwise silently go stale. Drives a live Unity Editor instance directly via the `unity` CLI (unity-pipeline).
 ---
 
 # Regenerate Inherited Assemblies
 
 `InheritedAssemblyGenerator` assets derive a `.asmdef` from a base assembly definition, normally regenerating on Inspector edits via `OnValidate`. **Direct file edits don't trigger `OnValidate`**, so they're silently ignored until this is run manually.
+
+This assumes the `unity` CLI is set up (`unity-pipeline` package installed, `unity` on PATH) - see the `unity-pipeline` skill if not.
 
 ## When to use this
 
@@ -15,60 +17,69 @@ After directly editing, in this repo:
 
 Use `RegenerateTarget` with the specific file you changed, not `RegenerateAll` — regenerating the whole project for a single-file edit is unnecessary work.
 
+**Always pass `--project-path` (or `--instance host:port`) explicitly.** More than one Unity project can have a live instance running at once (`unity pipeline list` shows every reachable one) - omitting it risks silently targeting the wrong project.
+
 ## Before editing: check for unsaved changes
 
-If you have a live-Editor bridge, check first:
-```csharp
-EditorUtility.IsDirty(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>("<path>"))
+```bash
+unity command eval "return UnityEditor.EditorUtility.IsDirty(UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(\"<path to the file you're about to edit>\"));" --project-path "<project path>"
 ```
-If dirty, **don't edit the file** — the asset already has unrelated unsaved changes, and Unity may resolve the conflict by discarding your file edit when it next reconciles (silently, no error). Tell the user to save/discard first, then retry.
 
-No bridge / can't check: you can't detect this in advance. Always verify your specific change landed after regenerating (below) rather than trusting the log alone — a discarded edit and "nothing needed to change" both report `changes made: False`.
+If `true`, **don't edit the file yet** — the asset already has unrelated unsaved changes, and Unity may resolve the conflict by discarding your file edit when it next reconciles (silently, no error). Tell the user to save/discard first, then retry.
+
+No live instance to check against: you can't detect this in advance. Always verify your specific change landed after regenerating (below) rather than trusting a successful-looking result alone.
 
 ## How to run it
 
-**Prefer Path A** — runs in the live Editor, works whether or not Unity is open, no process management.
+### A live instance is running for this project (preferred)
 
-### Path A: live-Editor C#/MCP bridge available
+Confirm with `unity pipeline list` (or `unity command editor_status --project-path <path>`). Then call straight into the package's own assembly - no menu items, no selection tricks needed:
 
-```csharp
-using UnityEngine;
-using UnityEditor;
-
-internal class CommandScript : IRunCommand
-{
-    public void Execute(ExecutionResult result)
-    {
-        var changed = JForge.AssemblyTools.Inheritance.InheritedAssemblyGeneratorUtility.RegenerateTarget("<path to the file you changed>");
-        result.Log("Regenerate changed anything: {0}", changed);
-    }
-}
+```bash
+unity command eval "return JForge.AssemblyTools.Inheritance.InheritedAssemblyGeneratorUtility.RegenerateTarget(\"<path to the file you changed>\");" --project-path "<project path>"
 ```
-(Adjust to your bridge's actual convention — the above is the common `IRunCommand`/`CommandScript` pattern.)
 
-Menu-only bridge (no arbitrary C#): execute `JForge/AssemblyTools/Regenerate All Inherited Assemblies` — coarser (whole project), but still avoids Path B.
+The JSON response's `result` field is `RegenerateTarget`'s return value (`true`/`false` - whether anything actually changed). If it changed something, that also triggered a domain reload (recompiling the new `.asmdef`), which briefly disconnects the pipeline server - give it a moment, or poll before reading logs:
 
-### Path B: no bridge (headless CI)
+```bash
+unity command recompile_status --project-path "<project path>"   # repeat until "completed" or "up_to_date"
+```
 
-1. If a Unity Editor is already open on this project and you have no bridge, you can't automate this — a second process can't acquire the lock. Ask the user to run it in their open Editor (`JForge > AssemblyTools > Regenerate Inherited Assembly` on the selected file), or close the Editor first. This is the only case needing a manual step.
-2. Otherwise: read `ProjectSettings/ProjectVersion.txt`'s `m_EditorVersion`, then find that Editor at the Hub default:
+### No live instance (headless / CI)
+
+1. Read `ProjectSettings/ProjectVersion.txt`'s `m_EditorVersion`, then find that Editor at the Hub default:
    - Windows: `%ProgramFiles%\Unity\Hub\Editor\<version>\Editor\Unity.exe`
    - macOS: `/Applications/Unity/Hub/Editor/<version>/Unity.app/Contents/MacOS/Unity`
    - Linux: `~/Unity/Hub/Editor/<version>/Editor/Unity`
 
    Not there? Ask the user for the path rather than guessing.
-3. Run once per changed file:
-   ```
+2. Run once per changed file:
+   ```bash
    "<Unity executable>" -batchmode -nographics -projectPath . -executeMethod JForge.AssemblyTools.Inheritance.InheritedAssemblyGeneratorUtility.RegenerateTargetFromCommandLine -jforgeTarget "<path to the file you changed>" -quit -logFile -
    ```
 
 ## Checking the result
 
-Check the summary line (`Regenerated N target(s), changes made: True/False`) and any error/warning lines. Then diff the changed `.asmdef`/`.asset` files and confirm your intended change is actually present — not just that the log claimed success (see the unsaved-changes warning above).
+Whichever path you used, check for error/warning lines:
+
+```bash
+unity command console --tail 10 --project-path "<project path>"
+```
+
+Then diff the changed `.asmdef`/`.asset` files and confirm your intended change is actually present - not just that the call reported success. A `true` result confirms *something* regenerated, but not necessarily *your* edit, if it was silently lost before regeneration ran (see the unsaved-changes warning above).
 
 ## Notes
 
 - Multiple unrelated changed files: call once per file, not combined.
-- Unsure what changed, or want the whole project verified: use `RegenerateAll` (same invocation, no target argument) — more expensive, but finds and converges every generator, including inheritance chains.
-- Both methods are no-ops if nothing needs regenerating.
-- Neither of these runs `AssemblyPackageGenerator`'s "Generate Package" — see the separate `generate-package` skill for that.
+- Unsure what changed, or want the whole project verified: check first rather than calling `RegenerateAll` reflexively:
+  ```bash
+  unity command eval "return JForge.AssemblyTools.Inheritance.InheritedAssemblyGeneratorUtility.AnyRootAssemblyChanged();" --project-path "<project path>"
+  ```
+  Cheap (no file I/O) - only checks whether a *root* assembly (a hand-authored `.asmdef`, not itself generated by another `InheritedAssemblyGenerator`) has drifted. If `false`, there's nothing for `RegenerateAll` to do. If `true` (or you're not sure), run the whole-project sweep - note `RegenerateAll` returns `void`, so call it as a statement, not with `return`:
+  ```bash
+  unity command eval "JForge.AssemblyTools.Inheritance.InheritedAssemblyGeneratorUtility.RegenerateAll();" --project-path "<project path>"
+  ```
+  It's materially more expensive than `RegenerateTarget` - every generator runs, not just the affected ones.
+- For CI without a live instance, `CheckRootAssembliesFromCommandLine` (via `-executeMethod`) exits with code 1 if a root assembly changed, 0 otherwise - a "did someone forget to regenerate" build gate. It calls `EditorApplication.Exit`, so only run it from a dedicated batch-mode process, never against a live instance.
+- `RegenerateTarget`, `RegenerateAll`, and `AnyRootAssemblyChanged` are all no-ops (or return `false`) if nothing needs regenerating.
+- None of these run `AssemblyPackageGenerator`'s "Generate Package" — see the separate `generate-package` skill for that.

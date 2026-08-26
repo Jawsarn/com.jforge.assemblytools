@@ -50,23 +50,33 @@ namespace JForge.AssemblyTools.Inheritance
             return string.IsNullOrEmpty(assemblyFileName) ? name : assemblyFileName;
         }
         
-        /// <summary>
-        /// Regenerates the derived assembly definition from <see cref="assemblyDefinitionBase"/> if its
-        /// content has changed since the last generation.
-        /// </summary>
-        /// <param name="forced">
-        /// If true, logs errors/warnings for problems that would otherwise fail silently (missing base
-        /// assembly, deserialization failure, duplicate references) - used for explicit user- or
-        /// agent-triggered regeneration. Non-forced calls come from <c>OnValidate</c>, which already reports
-        /// duplicate references itself; see <see cref="WarnAboutDuplicateAdditionalReferences"/>.
-        /// </param>
-        /// <returns>
-        /// Whether a new/changed assembly definition was actually written, so callers (see
-        /// <see cref="InheritedAssemblyGeneratorUtility"/>) can tell whether anything changed without
-        /// inspecting file state themselves.
-        /// </returns>
         public virtual bool TryGenerate(bool forced = false)
         {
+            if (!TryComputeContent(forced, out var assemblyContent, out var assemblyDefinitionPath))
+            {
+                return false;
+            }
+
+            if (!ShouldGenerate(assemblyContent, assemblyDefinitionPath))
+            {
+                return false;
+            }
+
+            GenerateAssemblyDefinition(assemblyDefinitionPath, assemblyContent);
+            return true;
+        }
+        
+        public bool NeedsRegeneration()
+        {
+            return TryComputeContent(false, out var assemblyContent, out var assemblyDefinitionPath)
+                && ShouldGenerate(assemblyContent, assemblyDefinitionPath);
+        }
+
+        private bool TryComputeContent(bool forced, out string assemblyContent, out string assemblyDefinitionPath)
+        {
+            assemblyContent = null;
+            assemblyDefinitionPath = null;
+
             if (assemblyDefinitionBase == null)
             {
                 if (forced)
@@ -100,26 +110,21 @@ namespace JForge.AssemblyTools.Inheritance
             }
             assemblySerializer.AddReferences(additionalReferences);
 
-            var assemblyContent = assemblySerializer.SerializeToString();
+            assemblyContent = assemblySerializer.SerializeToString();
             var generatorPath = AssetDatabase.GetAssetPath(this);
             var generatorDirectory = Path.GetDirectoryName(generatorPath);
             if (generatorDirectory == null)
             {
+                assemblyContent = null;
                 return false;
             }
 
-            var assemblyDefinitionPath = Path.Combine(generatorDirectory, GetAssemblyFileName());
+            assemblyDefinitionPath = Path.Combine(generatorDirectory, GetAssemblyFileName());
             if (!assemblyDefinitionPath.EndsWith(UnityFileExtensions.AssemblyDefinition))
             {
                 assemblyDefinitionPath += UnityFileExtensions.AssemblyDefinition;
             }
 
-            if (!ShouldGenerate(assemblyContent, assemblyDefinitionPath))
-            {
-                return false;
-            }
-
-            GenerateAssemblyDefinition(assemblyDefinitionPath, assemblyContent);
             return true;
         }
 

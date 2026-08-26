@@ -1,15 +1,19 @@
 ---
 name: generate-package
-description: Run a JForge Assembly Tools AssemblyPackageGenerator's "Generate Package" action (scaffolding a feature's folder structure from a template) after creating or configuring the generator asset directly by file, since this action has no Inspector-independent trigger of its own and otherwise requires manually clicking a button in the Unity Editor.
+description: Run a JForge Assembly Tools AssemblyPackageGenerator's "Generate Package" action (scaffolding a feature's folder structure from a template) after creating or configuring the generator asset directly by file, since this action has no Inspector-independent trigger of its own and otherwise requires manually clicking a button in the Unity Editor. Drives a live Unity Editor instance directly via the `unity` CLI (unity-pipeline).
 ---
 
 # Generate Package
 
 `AssemblyPackageGenerator` assets copy a template folder structure into a new feature folder, given `packageTemplate` + `generatedPackageName`. This was always an explicit, one-shot action (never auto-triggered by `OnValidate`) — the gap this fills is just giving it a programmatic entry point.
 
+This assumes the `unity` CLI is set up (`unity-pipeline` package installed, `unity` on PATH) - see the `unity-pipeline` skill if not.
+
 ## When to use this
 
 After configuring an `AssemblyPackageGenerator` asset directly by file (`generatedPackageName`, `packageTemplate`), to actually run the generation it now describes.
+
+**Always pass `--project-path` (or `--instance host:port`) explicitly** — more than one Unity project can have a live instance running at once (`unity pipeline list` shows every reachable one).
 
 ## Before running: this can silently overwrite existing files
 
@@ -20,46 +24,35 @@ After configuring an `AssemblyPackageGenerator` asset directly by file (`generat
 
 ## How to run it
 
-**Prefer Path A** — runs in the live Editor, works whether or not Unity is open, no process management.
+### A live instance is running for this project (preferred)
 
-### Path A: live-Editor C#/MCP bridge available
-
-```csharp
-using UnityEngine;
-using UnityEditor;
-
-internal class CommandScript : IRunCommand
-{
-    public void Execute(ExecutionResult result)
-    {
-        var success = JForge.AssemblyTools.PackageGenerator.AssemblyPackageGeneratorUtility.GeneratePackage("<path to the AssemblyPackageGenerator asset>");
-        result.Log("GeneratePackage success: {0}", success);
-    }
-}
+```bash
+unity command eval "return JForge.AssemblyTools.PackageGenerator.AssemblyPackageGeneratorUtility.GeneratePackage(\"<path to the AssemblyPackageGenerator asset>\");" --project-path "<project path>"
 ```
-(Adjust to your bridge's actual convention — the above is the common `IRunCommand`/`CommandScript` pattern.)
 
-Menu-only bridge: select the `AssemblyPackageGenerator` asset (`Selection.activeObject`), then execute `Assets/JForge/AssemblyTools/Generate Package`.
+The JSON response's `result` field is `GeneratePackage`'s return value. This copies/creates a batch of new files, which can trigger a recompile - poll before reading logs if the result was `true`:
 
-### Path B: no bridge (headless CI)
+```bash
+unity command recompile_status --project-path "<project path>"   # repeat until "completed" or "up_to_date"
+```
 
-1. If a Unity Editor is already open on this project and you have no bridge, you can't automate this — a second process can't acquire the lock. Ask the user to run it in their open Editor (select the asset, right-click → `JForge > AssemblyTools > Generate Package`), or close the Editor first.
-2. Otherwise: read `ProjectSettings/ProjectVersion.txt`'s `m_EditorVersion`, then find that Editor at the Hub default:
-   - Windows: `%ProgramFiles%\Unity\Hub\Editor\<version>\Editor\Unity.exe`
-   - macOS: `/Applications/Unity/Hub/Editor/<version>/Unity.app/Contents/MacOS/Unity`
-   - Linux: `~/Unity/Hub/Editor/<version>/Editor/Unity`
+### No live instance (headless / CI)
 
-   Not there? Ask the user for the path rather than guessing.
-3. Run:
-   ```
+1. Locate the Unity executable the same way as the `regenerate-inherited-assemblies` skill (via `ProjectSettings/ProjectVersion.txt` + Hub default paths).
+2. Run:
+   ```bash
    "<Unity executable>" -batchmode -nographics -projectPath . -executeMethod JForge.AssemblyTools.PackageGenerator.AssemblyPackageGeneratorUtility.GeneratePackageFromCommandLine -jforgeTarget "<path to the AssemblyPackageGenerator asset>" -quit -logFile -
    ```
 
 ## Checking the result
 
-Check the summary line (`Generated package '<name>' from '<generator>', success: True/False`) and any error lines (missing `packageTemplate`, invalid folders). Then check what changed under the destination folder (`git status`) — specifically confirm nothing pre-existing was silently overwritten, per the warning above.
+```bash
+unity command console --tail 10 --project-path "<project path>"
+```
+
+Check for error lines (missing `packageTemplate`, invalid folders), then check what changed under the destination folder (`git status`) — specifically confirm nothing pre-existing was silently overwritten, per the warning above.
 
 ## Notes
 
-- Package generation's post-processors call `InheritedAssemblyGenerator.TryGenerate` on any copied generators — failures/warnings from that show up in the same console output.
+- Package generation's post-processors call `InheritedAssemblyGenerator.TryGenerate` on any copied generators - failures/warnings from that show up in the same console output.
 - Missing `packageTemplate` is reported as an error, not silently skipped.
