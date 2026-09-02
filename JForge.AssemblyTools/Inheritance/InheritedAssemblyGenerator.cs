@@ -15,8 +15,8 @@ namespace JForge.AssemblyTools.Inheritance
         public string assemblyName;
         public string assemblyFileName;
         public string rootNamespace;
-        public List<AssemblyDefinitionAsset> existingReferences;
-        public List<AssemblyDefinitionAsset> additionalReferences;
+        public List<AssemblyDefinitionAsset> existingReferences = new List<AssemblyDefinitionAsset>();
+        public List<AssemblyDefinitionAsset> additionalReferences = new List<AssemblyDefinitionAsset>();
         public AssemblyDefinitionAsset generatedDefinition;
         
         private void OnValidate()

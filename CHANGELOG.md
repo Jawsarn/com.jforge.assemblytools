@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.3] - 2026-09-02
+### Fixed
+* Creating a new `InheritedAssemblyGenerator` via the Create Asset menu no longer throws a `NullReferenceException` and fails to show the Inspector. `existingReferences`/`additionalReferences` had no field initializer, so a freshly created (not-yet-serialized) instance had them `null`; the custom editor's duplicate-reference check ran unconditionally in `CreateInspectorGUI()` and crashed on the null list before any fields - including `assemblyDefinitionBase` - could be displayed for assignment.
+
 ## [1.1.2] - 2026-08-25
 ### Added
 * `InheritedAssemblyGenerator.NeedsRegeneration()` - reports whether `TryGenerate` would actually write anything right now, without writing anything itself (no file I/O, no reimport). Extracted from `TryGenerate` via a shared `TryComputeContent` helper, so the two stay in sync by construction rather than by convention.
