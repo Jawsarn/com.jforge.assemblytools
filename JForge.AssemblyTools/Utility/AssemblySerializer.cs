@@ -92,8 +92,7 @@ namespace JForge.AssemblyTools.Utility
                     continue;
                 }
 
-                var guid = AssetDatabase.GUIDFromAssetPath(AssetDatabase.GetAssetPath(additionalReference));
-                var referenceValue = _useGUID ? $"{GuidPrefix}{guid}" : additionalReference.name;
+                var referenceValue = GetReferenceValue(additionalReference);
 
                 // Guards against duplicate entries, e.g. when the inspector's list "+" button duplicates the
                 // previous entry, or the same reference already came from the base assembly.
@@ -125,8 +124,50 @@ namespace JForge.AssemblyTools.Utility
             referencesArray.Clear();
             foreach (var reference in references)
             {
-                var guid = AssetDatabase.GUIDFromAssetPath(AssetDatabase.GetAssetPath(reference));
-                referencesArray.Add(_useGUID ? $"{GuidPrefix}{guid}" : reference.name);
+                referencesArray.Add(GetReferenceValue(reference));
+            }
+        }
+
+        private string GetReferenceValue(AssemblyDefinitionAsset reference)
+        {
+            if (_useGUID)
+            {
+                return $"{GuidPrefix}{AssetDatabase.GUIDFromAssetPath(AssetDatabase.GetAssetPath(reference))}";
+            }
+
+            return GetDeclaredAssemblyName(reference);
+        }
+
+        // Unity resolves a name reference by the "name" declared inside the asmdef, which can differ from the
+        // asset's file name (e.g. Magica Cloth 2's MagicaCloth2.asmdef declares "MagicaClothV2"). Writing the
+        // file name in that case produces a reference that silently resolves to nothing.
+        public static string GetDeclaredAssemblyName(AssemblyDefinitionAsset assemblyDefinitionAsset)
+        {
+            try
+            {
+                var assemblyName = (string)JsonConvert.DeserializeObject<JObject>(assemblyDefinitionAsset.text)?["name"];
+                return string.IsNullOrEmpty(assemblyName) ? assemblyDefinitionAsset.name : assemblyName;
+            }
+            catch (JsonException)
+            {
+                return assemblyDefinitionAsset.name;
+            }
+        }
+
+        public void ReplaceInReferenceNames(string oldValue, string newValue)
+        {
+            if (!TryGetReferences(out var references))
+            {
+                return;
+            }
+
+            for (var i = 0; i < references.Count; i++)
+            {
+                var referenceString = (string)references[i];
+                if (!referenceString.StartsWith(GuidPrefix))
+                {
+                    references[i] = referenceString.Replace(oldValue, newValue);
+                }
             }
         }
 

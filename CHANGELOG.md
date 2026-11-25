@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.4] - 2026-11-25
+### Fixed
+* Name-based references are now written using the assembly name declared inside the referenced `.asmdef` (its `"name"` field) instead of the asset's file name. The two can differ in third-party packages - Magica Cloth 2's `MagicaCloth2.asmdef` declares `MagicaClothV2` - and Unity resolves name references by the declared name only, so adding such an asmdef to an `InheritedAssemblyGenerator`'s `additionalReferences` produced a reference that resolved to nothing and the generated assembly could not see the referenced code. Applies to both `AssemblySerializer.AddReferences` (inherited-assembly generation) and `AssemblySerializer.SetReferences` (package generation), via the new `AssemblySerializer.GetDeclaredAssemblyName`. GUID-based references are unaffected.
+* `AssemblyDefinitionProcessor` no longer depends on the order in which copied template asmdefs are processed: because references now use the declared name, a copy that has not been renamed yet would still declare the placeholder name, so the processor now also replaces the placeholder in the reference names it rewrites (`AssemblySerializer.ReplaceInReferenceNames`).
+
 ## [1.1.3] - 2026-09-02
 ### Fixed
 * Creating a new `InheritedAssemblyGenerator` via the Create Asset menu no longer throws a `NullReferenceException` and fails to show the Inspector. `existingReferences`/`additionalReferences` had no field initializer, so a freshly created (not-yet-serialized) instance had them `null`; the custom editor's duplicate-reference check ran unconditionally in `CreateInspectorGUI()` and crashed on the null list before any fields - including `assemblyDefinitionBase` - could be displayed for assignment.

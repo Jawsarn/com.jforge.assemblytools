@@ -62,6 +62,10 @@ namespace JForge.AssemblyTools.PackageGenerator.PostProcessors
             if (anyInformationUpdated)
             {
                 assemblySerializer.SetReferences(references);
+                // References are written by each asmdef's declared name, and a copied template asmdef that this
+                // one references may not have been processed yet, so its name can still hold the placeholder.
+                // Replacing it here keeps the result independent of processing order.
+                assemblySerializer.ReplaceInReferenceNames(context.featureNameReplaceString, context.featureName);
             }
 
             return anyInformationUpdated;
